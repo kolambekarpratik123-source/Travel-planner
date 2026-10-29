@@ -29,7 +29,7 @@ Built with **Python and Flask**. Every page is rendered on the server, so the ap
 | Layer | Technology |
 | --- | --- |
 | Backend | Python 3, Flask |
-| AI | Google Gemini 2.5 Flash (structured JSON output via response schema) |
+| AI | Google Gemini Flash (structured JSON output via response schema) |
 | Database | SQLite |
 | Frontend | Jinja2 templates, HTML5, CSS3 (no JavaScript) |
 | Auth | Werkzeug password hashing, Flask sessions, CSRF tokens |
