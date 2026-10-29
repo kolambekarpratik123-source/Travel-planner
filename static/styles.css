@@ -715,9 +715,15 @@ select {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(to top, rgba(8, 9, 13, 0.95) 0%, rgba(8, 9, 13, 0.4) 60%, rgba(8, 9, 13, 0.1) 100%);
+  background: linear-gradient(to top, rgba(8, 9, 13, 0.95) 0%, rgba(8, 9, 13, 0.7) 60%, rgba(8, 9, 13, 0.55) 100%);
   z-index: 1;
   pointer-events: none;
+}
+
+/* Keep hero text above the dark gradient overlay */
+.hero-content {
+  position: relative;
+  z-index: 2;
 }
 
 .hero-labels {
