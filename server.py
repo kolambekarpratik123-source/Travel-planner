@@ -47,7 +47,7 @@ LOADING_STEPS = [
 app = Flask(__name__)
 # Set FLASK_SECRET_KEY to keep people logged in across restarts.
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
-app.jinja_env.globals.update(valid_image=planner.valid_image, photo_for=planner.photo_for)
+app.jinja_env.globals.update(valid_image=planner.valid_image)
 
 
 # ---------------------------------------------------------------- database
@@ -168,11 +168,12 @@ def _generate_in_background(plan_id, destination, duration, budget, style):
     try:
         plan = gemini_service.generate_plan(destination, duration, budget, style)
         planner.drop_broken_images(plan)
+        planner.attach_photos(plan)
         _store_plan(plan_id, 'done', 'ai', plan)
     except GeminiError as e:
         template = planner.find_demo_template(destination)
         if template:
-            plan = planner.adapt_demo_plan(template, duration, budget, style)
+            plan = planner.attach_photos(planner.adapt_demo_plan(template, duration, budget, style))
             _store_plan(plan_id, 'done', 'fallback', plan, error=str(e))
         else:
             _store_plan(plan_id, 'error', error=str(e))
@@ -215,7 +216,7 @@ def _render_plan(plan, source, *, plan_id=None, trip_id=None, notice=None):
         return None
 
     stops = [{'stop': s, 'details': details_for(s.get('spot'))} for s in schedule]
-    hero_image = planner.valid_image(plan.get('hero_image'), plan.get('destination'))
+    hero_image = planner.valid_image(plan.get('hero_image'))
     return render_template(
         'plan.html', plan=plan, source=source, day=day, stops=stops,
         route_map=planner.route_map(plan, schedule), hero_image=hero_image,
@@ -291,7 +292,8 @@ def generate():
         flash('No Gemini API key is set on the server, so only the pre-loaded demo cities work. '
               'Pick one of the cities below, or set GEMINI_API_KEY to plan any destination.', 'error')
         return render_template('index.html', **_form_context(**form_values)), 400
-    _store_plan(plan_id, 'done', 'demo', planner.adapt_demo_plan(template, duration, budget, style))
+    plan = planner.attach_photos(planner.adapt_demo_plan(template, duration, budget, style), timeout=4)
+    _store_plan(plan_id, 'done', 'demo', plan)
     return redirect(url_for('show_plan', plan_id=plan_id))
 
 

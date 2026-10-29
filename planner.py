@@ -15,13 +15,9 @@ with open(os.path.join(DATA_DIR, "lookups.json"), encoding="utf-8") as f:
 
 POPULAR_PRESETS = _LOOKUPS["popular_presets"]
 GENERIC_PLACEHOLDERS = _LOOKUPS["generic_placeholders"]
-LANDMARK_PHOTOS = _LOOKUPS["landmark_photos"]
-CITY_PHOTOS = _LOOKUPS["city_photos"]
-PHOTO_CATEGORIES = _LOOKUPS["photo_categories"]
 CITY_CENTERS = _LOOKUPS["city_centers"]
 LANDMARK_COORDS = _LOOKUPS["landmark_coords"]
 
-DEFAULT_PHOTO = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80"
 
 # Preset cities shown on the setup page, grouped like the original UI.
 PRESET_GROUPS = [
@@ -87,28 +83,87 @@ def adapt_demo_plan(template, duration, budget, style):
 
 # ---------------------------------------------------------------- photos
 
-def photo_for(query):
-    """Pick a known-good photo for a place name, falling back by category."""
-    if not query:
-        return DEFAULT_PHOTO
-    q = query.lower().strip()
-    for key, url in LANDMARK_PHOTOS.items():
-        if key in q:
-            return url
-    for city, url in CITY_PHOTOS.items():
-        if city in q:
-            return url
-    for cat in PHOTO_CATEGORIES:
-        if any(re.search(r"\b" + re.escape(k), q) for k in cat["keys"]):
-            return cat["url"]
-    return DEFAULT_PHOTO
+WIKI_API = "https://en.wikipedia.org/w/api.php"
+WIKI_HEADERS = {"User-Agent": "VoyageAI-TravelPlanner/1.0 (https://github.com/kolambekarpratik123-source/Travel-planner)"}
+_STOPWORDS = {"the", "and", "with", "from", "visit", "tour", "local", "lunch", "dinner", "breakfast",
+              "evening", "morning", "walk", "explore", "market", "hotel", "city", "day", "trip", "at", "of", "in"}
+_wiki_cache = {}
 
 
-def valid_image(url, fallback_query):
-    """Use the plan's own image unless it's missing or one of the generic stock shots."""
-    if not url or any(p in url for p in GENERIC_PLACEHOLDERS):
-        return photo_for(fallback_query)
+# Gemini can't look up photos, so links it gives to stock-photo sites are guesses
+# (a beach for a fort, the Taj Mahal for Jaipur). Those are never shown.
+STOCK_PHOTO_HOSTS = ("unsplash.com", "pexels.com", "pixabay.com", "shutterstock.com", "istockphoto.com")
+
+
+def valid_image(url, _fallback_query=None):
+    """The image URL if it can be trusted to show the right place, otherwise "".
+    An empty result tells the template to draw a placeholder instead of a wrong photo."""
+    if not url or any(p in url for p in GENERIC_PLACEHOLDERS) or any(h in url for h in STOCK_PHOTO_HOSTS):
+        return ""
     return url
+
+
+def _keywords(text):
+    return {w for w in re.findall(r"[a-z]+", (text or "").lower()) if len(w) > 3 and w not in _STOPWORDS}
+
+
+def wiki_photo(name, city="", timeout=6):
+    """Photo of a real place from Wikipedia, or "" when no matching article has one.
+    The article title must share a word with the place name, so "Breakfast at hotel"
+    doesn't come back with a photo of something unrelated."""
+    import requests
+
+    key = (name or "").strip().lower(), (city or "").strip().lower()
+    if not key[0]:
+        return ""
+    if key in _wiki_cache:
+        return _wiki_cache[key]
+    url = ""
+    try:
+        r = requests.get(WIKI_API, headers=WIKI_HEADERS, timeout=timeout, params={
+            "action": "query", "format": "json", "generator": "search",
+            "gsrsearch": f"{name} {city}".strip(), "gsrlimit": 3,
+            "prop": "pageimages", "piprop": "thumbnail", "pithumbsize": 800,
+        })
+        pages = sorted((r.json().get("query") or {}).get("pages", {}).values(),
+                       key=lambda p: p.get("index", 99))
+        wanted = _keywords(name)
+        for page in pages:
+            thumb = (page.get("thumbnail") or {}).get("source")
+            if thumb and wanted & _keywords(page.get("title")):
+                url = thumb
+                break
+    except (requests.RequestException, ValueError):
+        return ""  # don't cache network failures
+    _wiki_cache[key] = url
+    return url
+
+
+def attach_photos(plan, timeout=6):
+    """Fill in missing photos for the destination, attractions and itinerary stops from
+    Wikipedia. Hotels are left alone: a search for a hotel name too often finds a
+    different building, and a placeholder is better than a wrong picture."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    city = (plan.get("destination") or "").split(",")[0].strip()
+    jobs = []  # (holder, key, name, city)
+    if not valid_image(plan.get("hero_image")):
+        jobs.append((plan, "hero_image", city, ""))
+    for spot in plan.get("spots") or []:
+        if not valid_image(spot.get("image")):
+            jobs.append((spot, "image", spot.get("name"), city))
+    for day in plan.get("itinerary") or []:
+        for stop in day.get("schedule") or []:
+            if not valid_image(stop.get("image")):
+                jobs.append((stop, "image", stop.get("spot"), city))
+    if not jobs:
+        return plan
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda j: wiki_photo(j[2], j[3], timeout), jobs))
+    for (holder, key, _n, _c), url in zip(jobs, results):
+        if url:
+            holder[key] = url
+    return plan
 
 
 # ---------------------------------------------------------------- coordinates

@@ -2167,3 +2167,19 @@ a.preset-tag { color: inherit; text-decoration: none; }
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 5; white-space: nowrap;
 }
 .trips-search-filter-bar { align-items: center; }
+
+/* Hero with no photo of the city: a plain gradient instead of a wrong picture. */
+.dashboard-hero.no-photo {
+  background: radial-gradient(circle at 15% 20%, rgba(6, 182, 212, 0.22), transparent 55%),
+              radial-gradient(circle at 85% 80%, rgba(139, 92, 246, 0.22), transparent 55%),
+              var(--bg-surface-solid, #11131f);
+}
+.dashboard-hero .stat-card { background: rgba(10, 11, 20, 0.65); }
+
+/* Shown when no photo of the real place is available, instead of a wrong one. */
+.img-placeholder {
+  width: 100%; height: 100%; min-height: 120px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(139, 92, 246, 0.12));
+  color: var(--text-muted); font-size: 1.8rem;
+}

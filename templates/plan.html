@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ plan.destination }} | VoyageAI{% endblock %}
-{% block body_attrs %} style="--body-bg-image: url('{{ hero_image }}')"{% endblock %}
+{% block body_attrs %}{% if hero_image %} style="--body-bg-image: url('{{ hero_image }}')"{% endif %}{% endblock %}
 {% block content %}
 {% set base_url = url_for('show_trip', trip_id=trip_id) if trip_id else url_for('show_plan', plan_id=plan_id) %}
 <section class="dashboard-screen active">
@@ -34,7 +34,7 @@
   <div class="plan-notice"><i class="fa-solid fa-triangle-exclamation"></i> {{ notice }}</div>
   {% endif %}
 
-  <div class="dashboard-hero glass-panel" style="background-image: url('{{ hero_image }}')">
+  <div class="dashboard-hero glass-panel{% if not hero_image %} no-photo{% endif %}"{% if hero_image %} style="background-image: url('{{ hero_image }}')"{% endif %}>
     <div class="hero-content">
       <div class="hero-labels">
         <span class="hero-badge">{{ plan.style }}</span>
@@ -96,7 +96,9 @@
           <div class="timeline-item">
             <div class="timeline-card">
               <div class="timeline-card-image-wrap">
-                <img class="timeline-card-image" src="{{ valid_image(s.image, s.spot) }}" alt="{{ s.spot }}" loading="lazy">
+                {% set img = valid_image(s.image) %}
+                {% if img %}<img class="timeline-card-image" src="{{ img }}" alt="{{ s.spot }}" loading="lazy">
+                {% else %}<div class="img-placeholder"><i class="fa-solid fa-location-dot"></i></div>{% endif %}
               </div>
               <div class="timeline-card-content">
                 <div class="timeline-meta">
@@ -135,7 +137,9 @@
           {% for hotel in plan.hotels %}
           <div class="hotel-item">
             <div class="hotel-card-image-wrap">
-              <img class="hotel-card-image" src="{{ valid_image(hotel.image, hotel.name ~ ' ' ~ (hotel.address or 'hotel')) }}" alt="{{ hotel.name }}" loading="lazy">
+              {% set img = valid_image(hotel.image) %}
+              {% if img %}<img class="hotel-card-image" src="{{ img }}" alt="{{ hotel.name }}" loading="lazy">
+              {% else %}<div class="img-placeholder"><i class="fa-solid fa-hotel"></i></div>{% endif %}
             </div>
             <div class="hotel-card-info-wrap">
               <div class="hotel-meta">
@@ -159,7 +163,9 @@
           {% for spot in plan.spots %}
           <div class="spot-badge-card">
             <div class="spot-card-image-wrap">
-              <img class="spot-card-image" src="{{ valid_image(spot.image, spot.name ~ ' ' ~ spot.category) }}" alt="{{ spot.name }}" loading="lazy">
+              {% set img = valid_image(spot.image) %}
+              {% if img %}<img class="spot-card-image" src="{{ img }}" alt="{{ spot.name }}" loading="lazy">
+              {% else %}<div class="img-placeholder"><i class="fa-solid fa-camera-retro"></i></div>{% endif %}
             </div>
             <div class="spot-card-info-wrap">
               <div class="spot-badge-info">
