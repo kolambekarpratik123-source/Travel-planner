@@ -7,6 +7,9 @@ import requests
 # Google retires older models for new API keys, so the model can be changed with GEMINI_MODEL.
 MODEL = (os.environ.get('GEMINI_MODEL') or 'gemini-3.8-flash').strip()
 API_URL = f'https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent'
+# How hard the model "thinks" before answering. "low" is much faster and plenty for a trip plan.
+# Set GEMINI_THINKING=off for models that don't support it.
+THINKING_LEVEL = (os.environ.get('GEMINI_THINKING') or 'low').strip().lower()
 TIMEOUT_SECONDS = 180  # newer models can take 1.5+ minutes for a long trip
 
 
@@ -41,14 +44,8 @@ Please make sure:
 6. If the travel style is "Adventure", explicitly include treks, hikes, visits to scenic waterfalls, and highlight the specific "base villages" where these journeys start. Detail these treks in the "treks" array with name, difficulty (e.g. Easy, Moderate, Challenging), duration, base_village, and description.
 7. If the travel style is NOT "Adventure", return an empty array for "treks".
 8. Provide realistic geographic latitude and longitude coordinates (decimal numbers) for each hotel, attraction, and schedule stop. Ensure these coordinates match the actual real-world location (e.g., Amer Fort is around 26.9855, 75.8513).
-9. Provide a high-resolution, specific Unsplash landscape photo URL for the 'hero_image' field that shows an iconic landmark of the destination city (e.g., 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1200&q=80' for Nepal, etc.).
-10. For each hotel, spot (attraction), and daily schedule event, provide a specific, high-resolution Unsplash photo URL inside the 'image' field that shows that actual landmark/accommodation. Crucially, generate a distinct and unique Unsplash photo ID for every different place (do NOT use the same general image for multiple items). For example:
-    - Chinese Fishing Nets Kochi: 'https://images.unsplash.com/photo-1589308078059-be1415eab4c3?auto=format&fit=crop&w=600&q=80'
-    - St. Francis Church Kochi: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=600&q=80'
-    - Backwaters / Alleppey: 'https://images.unsplash.com/photo-1593693397690-362cb9666fc2?auto=format&fit=crop&w=600&q=80'
-    - Paradesi Synagogue / Jew Town: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=600&q=80'
-    - General hotel/resort in Kerala: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=600&q=80'
-11. Return structured data exactly conforming to the JSON schema.'''
+9. Keep every description, highlight and activity to one or two short sentences.
+10. Return structured data exactly conforming to the JSON schema.'''
 
 
 def _obj(properties, required):
@@ -62,7 +59,6 @@ _N = {'type': 'NUMBER'}
 PLAN_SCHEMA = _obj(
     {
         'destination': _S,
-        'hero_image': _S,
         'description': _S,
         'duration': _I,
         'budget': _S,
@@ -73,22 +69,22 @@ PLAN_SCHEMA = _obj(
         ),
         'hotels': {'type': 'ARRAY', 'items': _obj(
             {'name': _S, 'price': _S, 'rating': _S, 'address': _S, 'highlight': _S,
-             'latitude': _N, 'longitude': _N, 'image': _S},
-            ['name', 'price', 'rating', 'address', 'highlight', 'latitude', 'longitude', 'image'],
+             'latitude': _N, 'longitude': _N},
+            ['name', 'price', 'rating', 'address', 'highlight', 'latitude', 'longitude'],
         )},
         'spots': {'type': 'ARRAY', 'items': _obj(
             {'name': _S, 'category': _S, 'rating': _S, 'highlight': _S,
-             'latitude': _N, 'longitude': _N, 'image': _S},
-            ['name', 'category', 'rating', 'highlight', 'latitude', 'longitude', 'image'],
+             'latitude': _N, 'longitude': _N},
+            ['name', 'category', 'rating', 'highlight', 'latitude', 'longitude'],
         )},
         'itinerary': {'type': 'ARRAY', 'items': _obj(
             {
                 'day': _I,
                 'schedule': {'type': 'ARRAY', 'items': _obj(
                     {'time': _S, 'spot': _S, 'activity': _S, 'cost': _S, 'duration': _S,
-                     'transport': _S, 'latitude': _N, 'longitude': _N, 'image': _S},
+                     'transport': _S, 'latitude': _N, 'longitude': _N},
                     ['time', 'spot', 'activity', 'cost', 'duration', 'transport',
-                     'latitude', 'longitude', 'image'],
+                     'latitude', 'longitude'],
                 )},
             },
             ['day', 'schedule'],
@@ -103,7 +99,7 @@ PLAN_SCHEMA = _obj(
             ['name', 'difficulty', 'duration', 'description'],
         )},
     },
-    ['destination', 'hero_image', 'description', 'duration', 'budget', 'style',
+    ['destination', 'description', 'duration', 'budget', 'style',
      'overview', 'hotels', 'spots', 'itinerary', 'routes', 'treks'],
 )
 
@@ -120,16 +116,25 @@ def generate_plan(location, duration, budget, style):
             'responseSchema': PLAN_SCHEMA,
         },
     }
+    if THINKING_LEVEL != 'off':
+        body['generationConfig']['thinkingConfig'] = {'thinkingLevel': THINKING_LEVEL}
 
-    try:
-        response = requests.post(
-            API_URL,
-            json=body,
-            headers={'Content-Type': 'application/json', 'x-goog-api-key': api_key},
-            timeout=TIMEOUT_SECONDS,
-        )
-    except requests.RequestException:
-        raise GeminiError('Could not reach the Gemini API. Please try again.')
+    def send():
+        try:
+            return requests.post(
+                API_URL,
+                json=body,
+                headers={'Content-Type': 'application/json', 'x-goog-api-key': api_key},
+                timeout=TIMEOUT_SECONDS,
+            )
+        except requests.RequestException:
+            raise GeminiError('Could not reach the Gemini API. Please try again.')
+
+    response = send()
+    # A model without the thinking setting rejects it; ask again without it.
+    if response.status_code == 400 and 'thinking' in response.text.lower():
+        body['generationConfig'].pop('thinkingConfig', None)
+        response = send()
 
     if not response.ok:
         message = 'Failed to communicate with Gemini API.'

@@ -94,9 +94,15 @@ def init_db():
             source TEXT,                    -- ai | demo | fallback
             plan_json TEXT,
             error TEXT,
-            created_at REAL NOT NULL
+            created_at REAL NOT NULL,
+            cache_key TEXT                  -- same trip settings reuse a recent AI plan
         );
     ''')
+    # Older databases were made before plans were cached by their trip settings.
+    try:
+        conn.execute('ALTER TABLE generated_plans ADD COLUMN cache_key TEXT')
+    except sqlite3.OperationalError:
+        pass  # column already exists
     # Drop unsaved plans older than a day.
     conn.execute('DELETE FROM generated_plans WHERE created_at < ?', (time.time() - 86400,))
     conn.commit()
@@ -155,12 +161,14 @@ def safe_next(target):
 
 # ---------------------------------------------------------------- plan generation
 
-def _store_plan(plan_id, status, source=None, plan=None, error=None):
+def _store_plan(plan_id, status, source=None, plan=None, error=None, cache_key=None):
     conn = sqlite3.connect(DB_FILE)
     conn.execute(
-        'INSERT OR REPLACE INTO generated_plans (id, status, source, plan_json, error, created_at) '
-        'VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM generated_plans WHERE id = ?), ?))',
-        (plan_id, status, source, json.dumps(plan) if plan is not None else None, error, plan_id, time.time()))
+        'INSERT OR REPLACE INTO generated_plans (id, status, source, plan_json, error, created_at, cache_key) '
+        'VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM generated_plans WHERE id = ?), ?), '
+        'COALESCE(?, (SELECT cache_key FROM generated_plans WHERE id = ?)))',
+        (plan_id, status, source, json.dumps(plan) if plan is not None else None, error, plan_id, time.time(),
+         cache_key, plan_id))
     conn.commit()
     conn.close()
 
@@ -168,7 +176,6 @@ def _store_plan(plan_id, status, source=None, plan=None, error=None):
 def _generate_in_background(plan_id, destination, duration, budget, style):
     try:
         plan = gemini_service.generate_plan(destination, duration, budget, style)
-        planner.drop_broken_images(plan)
         planner.attach_photos(plan)
         _store_plan(plan_id, 'done', 'ai', plan)
     except GeminiError as e:
@@ -283,7 +290,19 @@ def generate():
     plan_id = uuid.uuid4().hex
 
     if gemini_service.has_api_key():
-        _store_plan(plan_id, 'pending')
+        # Same trip asked for recently: reuse that AI plan (or the one still being made)
+        # instead of waiting another minute for Gemini.
+        cache_key = '|'.join([' '.join(destination.lower().split()), str(duration), budget.lower(), style])
+        recent = db().execute(
+            "SELECT id FROM generated_plans WHERE cache_key = ? AND ("
+            "(status = 'done' AND source = 'ai' AND created_at > ?) OR "
+            "(status = 'pending' AND created_at > ?)) "
+            "ORDER BY created_at DESC LIMIT 1",
+            (cache_key, time.time() - 86400,
+             time.time() - gemini_service.TIMEOUT_SECONDS - 30)).fetchone()
+        if recent:
+            return redirect(url_for('show_plan', plan_id=recent['id']))
+        _store_plan(plan_id, 'pending', cache_key=cache_key)
         threading.Thread(target=_generate_in_background,
                          args=(plan_id, destination, duration, budget, style), daemon=True).start()
         return redirect(url_for('show_plan', plan_id=plan_id))

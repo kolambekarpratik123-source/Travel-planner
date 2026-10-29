@@ -43,7 +43,7 @@ Browser form ──POST──▶ Flask /generate
                          │
                          ├─ no API key ──▶ demo plan (data/demo_plans.json)
                          │
-                         └─ background thread ──▶ Gemini API ──▶ check image links ──▶ SQLite
+                         └─ background thread ──▶ Gemini API ──▶ Wikipedia photos ──▶  SQLite
                                                                                     │
 Browser ◀── "Generating…" page (refreshes itself every 3 s) ◀────────────────────────┘
         ◀── itinerary page (day tabs, hotels, spots, SVG route map)
