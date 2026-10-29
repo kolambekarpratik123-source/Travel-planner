@@ -1,15 +1,16 @@
 """Server-side Gemini client. The API key stays on the server and never reaches the browser."""
 import json
 import os
+import time
 
 import requests
 
 # Google retires older models for new API keys, so the model can be changed with GEMINI_MODEL.
 MODEL = (os.environ.get('GEMINI_MODEL') or 'gemini-3.8-flash').strip()
 API_URL = f'https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent'
-# How hard the model "thinks" before answering. "low" is much faster and plenty for a trip plan.
-# Set GEMINI_THINKING=off for models that don't support it.
-THINKING_LEVEL = (os.environ.get('GEMINI_THINKING') or 'low').strip().lower()
+# Optional thinking level for the model ("low", "high"). Unset uses the model's default,
+# which measured faster than "low" for gemini-3.8-flash.
+THINKING_LEVEL = (os.environ.get('GEMINI_THINKING') or 'off').strip().lower()
 TIMEOUT_SECONDS = 180  # newer models can take 1.5+ minutes for a long trip
 
 
@@ -131,6 +132,11 @@ def generate_plan(location, duration, budget, style):
             raise GeminiError('Could not reach the Gemini API. Please try again.')
 
     response = send()
+    # Gemini sometimes answers "high demand" (503) or rate-limited (429); one quick retry
+    # usually gets through.
+    if response.status_code in (429, 503):
+        time.sleep(4)
+        response = send()
     # A model without the thinking setting rejects it; ask again without it.
     if response.status_code == 400 and 'thinking' in response.text.lower():
         body['generationConfig'].pop('thinkingConfig', None)
