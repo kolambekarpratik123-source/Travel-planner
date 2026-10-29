@@ -64,8 +64,8 @@ static/             Stylesheet and images
 ## Run it locally
 
 ```bash
-git clone https://github.com/Chetan0217/Ai-travel-planner.git
-cd Ai-travel-planner
+git clone https://github.com/kolambekarpratik123-source/Travel-planner.git
+cd Travel-planner
 pip install -r requirements.txt
 cp .env.example .env        # Windows: copy .env.example .env
 ```
@@ -85,4 +85,4 @@ Then open http://127.0.0.1:5000. Without a key, the app runs in demo mode.
 
 ## Author
 
-**Chetan** · [GitHub](https://github.com/Chetan0217)
+[kolambekarpratik123-source](https://github.com/kolambekarpratik123-source)
