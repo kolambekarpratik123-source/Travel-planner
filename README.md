@@ -47,7 +47,7 @@ Browser ◀── "Generating…" page (refreshes itself every 3 s) ◀───
         ◀── itinerary page (day tabs, hotels, spots, SVG route map)
 ```
 
-The Gemini call takes 40 to 60 seconds, so it runs in a background thread. While it runs, a plain HTML
+The Gemini call takes 1 to 2 minutes, so it runs in a background thread. While it runs, a plain HTML
 `<meta refresh>` page polls for the result. That keeps the UI responsive without any client-side code.
 
 ## Project structure

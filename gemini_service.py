@@ -7,7 +7,7 @@ import requests
 # Google retires older models for new API keys, so the model can be changed with GEMINI_MODEL.
 MODEL = (os.environ.get('GEMINI_MODEL') or 'gemini-3.8-flash').strip()
 API_URL = f'https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent'
-TIMEOUT_SECONDS = 90
+TIMEOUT_SECONDS = 180  # newer models can take 1.5+ minutes for a long trip
 
 
 class GeminiError(Exception):

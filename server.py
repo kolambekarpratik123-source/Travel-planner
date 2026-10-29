@@ -41,7 +41,8 @@ LOADING_STEPS = [
     (0, 'Locating coordinates...', 'Finding nearby spots and hotels...'),
     (12, 'Analyzing spots...', 'Curating sights based on your style and companions...'),
     (30, 'Connecting routes...', 'Plotting public transit and taxi travel paths...'),
-    (50, 'Formatting itinerary...', 'Almost there, putting your days in order...'),
+    (50, 'Formatting itinerary...', 'Putting your days in order...'),
+    (90, 'Almost there...', 'Long trips take a little longer. Hang tight!'),
 ]
 
 app = Flask(__name__)
