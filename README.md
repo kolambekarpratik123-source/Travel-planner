@@ -83,6 +83,12 @@ python server.py
 
 Then open http://127.0.0.1:5000. Without a key, the app runs in demo mode.
 
+## Deploy
+
+The repo includes a `render.yaml`, so it deploys to [Render](https://render.com) for free:
+**New → Blueprint**, pick this repo, and paste your `GEMINI_API_KEY` when asked.
+It runs on Gunicorn. On the free plan the app sleeps when idle, and saved trips reset on each redeploy.
+
 ## Author
 
 [kolambekarpratik123-source](https://github.com/kolambekarpratik123-source)

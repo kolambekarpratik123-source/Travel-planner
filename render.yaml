@@ -1,0 +1,16 @@
+# One-click deploy on Render (free plan): New > Blueprint > pick this repo.
+services:
+  - type: web
+    name: voyageai-travel-planner
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # One worker so background trip generation and the SQLite file stay in one process.
+    startCommand: gunicorn server:app --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: GEMINI_API_KEY
+        sync: false        # Render asks for this when you deploy
+      - key: FLASK_SECRET_KEY
+        generateValue: true
