@@ -6,6 +6,8 @@ that fit the budget, the attractions worth seeing, the route between stops and l
 
 Built with **Python and Flask**. Every page is rendered on the server, so the app runs without any JavaScript.
 
+**[▶ Try the live demo](https://voyageai-travel-planner-ctb4.onrender.com)** (free hosting: the first visit may take about a minute to wake up, and an AI trip takes 1–2 minutes)
+
 ![Trip planner home page](docs/screenshots/home.png)
 
 ## Features
